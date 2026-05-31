@@ -1,22 +1,21 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'auth_service.dart';
-import 'login_screen.dart';
-import 'dashboard_screen.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'screens/login_screen.dart';
+import 'screens/orangtua_screen.dart';
+import 'screens/pengurus_screen.dart';
+import 'screens/admin_keuangan_screen.dart';
+import 'services/auth_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-    ),
-  );
+  await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp, DeviceOrientation.portraitDown]);
+  SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
+    statusBarColor: Colors.transparent,
+    statusBarIconBrightness: Brightness.light,
+  ));
   runApp(const NurulImanApp());
 }
 
@@ -29,92 +28,94 @@ class NurulImanApp extends StatelessWidget {
       title: 'Nurul Iman',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF146c43)),
         useMaterial3: true,
+        textTheme: GoogleFonts.plusJakartaSansTextTheme(),
+        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF0f5132)),
+        scaffoldBackgroundColor: const Color(0xFFf4f7f6),
       ),
-      home: const SplashRouter(),
+      home: const _SplashScreen(),
     );
   }
 }
 
-class SplashRouter extends StatefulWidget {
-  const SplashRouter({super.key});
-
+class _SplashScreen extends StatefulWidget {
+  const _SplashScreen();
   @override
-  State<SplashRouter> createState() => _SplashRouterState();
+  State<_SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashRouterState extends State<SplashRouter> {
+class _SplashScreenState extends State<_SplashScreen> {
   @override
   void initState() {
     super.initState();
-    _checkSession();
+    Future.delayed(const Duration(milliseconds: 1200), _route);
   }
 
-  Future<void> _checkSession() async {
-    final prefs = await SharedPreferences.getInstance();
-    final role = prefs.getString('role') ?? '';
-
-    await Future.delayed(const Duration(milliseconds: 800));
+  Future<void> _route() async {
     if (!mounted) return;
-
-    if (role.isEmpty) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-      );
-      return;
+    final session = await AuthService.getSession();
+    final role    = session['role'];
+    Widget next;
+    switch (role) {
+      case 'orangtua': next = const OrangtuaScreen(); break;
+      case 'pengurus':  next = const PengurusScreen();       break;
+      case 'admin':
+      case 'superadmin':
+      case 'bendahara':  next = const AdminKeuanganScreen(); break;
+      default:         next = const LoginScreen();
     }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => routeByRole(role)),
-    );
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => next));
   }
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF0b3d24),
-      body: Center(
-        child: CircularProgressIndicator(color: Color(0xFFffc107)),
+    return Scaffold(
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
+            colors: [Color(0xFF0a3622), Color(0xFF146c43)],
+          ),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 110, height: 110,
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: Icon(Icons.mosque_rounded, size: 70, color: Color(0xFF0f5132)),
+                ),
+              ).animate().scale(duration: 600.ms, curve: Curves.elasticOut),
+
+              const SizedBox(height: 24),
+
+              Text('NURUL IMAN',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white, fontWeight: FontWeight.w800,
+                    fontSize: 26, letterSpacing: 3,
+                  )).animate().fadeIn(delay: 300.ms, duration: 500.ms),
+
+              const SizedBox(height: 8),
+
+              Text('Sistem Informasi Akademik & Keuangan',
+                  style: GoogleFonts.plusJakartaSans(
+                    color: Colors.white.withOpacity(0.7), fontSize: 13,
+                  )).animate().fadeIn(delay: 450.ms, duration: 500.ms),
+
+              const SizedBox(height: 40),
+
+              const SizedBox(
+                width: 28, height: 28,
+                child: CircularProgressIndicator(color: Colors.white54, strokeWidth: 2.5),
+              ).animate().fadeIn(delay: 600.ms),
+            ],
+          ),
+        ),
       ),
     );
-  }
-}
-
-/// Helper global untuk routing berdasarkan role
-Widget routeByRole(String role) {
-  switch (role) {
-    case 'admin':
-    case 'superadmin':
-    case 'bendahara':
-      return const DashboardScreen(role: 'admin');
-    case 'sekretaris':
-      return const DashboardScreen(role: 'sekretaris');
-    case 'kurikulum':
-      return const DashboardScreen(role: 'kurikulum');
-    case 'guru':
-    case 'walikelas':
-      return const DashboardScreen(role: 'guru');
-    case 'piket':
-      return const DashboardScreen(role: 'piket');
-    case 'ubudiah':
-      return const DashboardScreen(role: 'ubudiah');
-    case 'keamanan':
-      return const DashboardScreen(role: 'keamanan');
-    case 'kebersihan':
-      return const DashboardScreen(role: 'kebersihan');
-    case 'peralatan':
-      return const DashboardScreen(role: 'peralatan');
-    case 'kesehatan':
-      return const DashboardScreen(role: 'kesehatan');
-    case 'kesenian':
-      return const DashboardScreen(role: 'kesenian');
-    case 'rois':
-      return const DashboardScreen(role: 'rois');
-    default:
-      AuthService.logout();
-      return const LoginScreen();
   }
 }
