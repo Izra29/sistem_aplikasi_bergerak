@@ -216,9 +216,10 @@ class _AdminDetailScreenState extends State<AdminDetailScreen> {
   int    _tahun      = DateTime.now().month >= 7 ? DateTime.now().year : DateTime.now().year - 1;
 
   bool get _adaFilter => _kobongId.isNotEmpty || _kelas.isNotEmpty;
-  bool get _noFilter  => widget.tab == 'verifikasi' || widget.tab == 'pengaturan';
+  bool get _noFilter     => widget.tab == 'verifikasi' || widget.tab == 'pengaturan';
+  bool get _riwayatTab   => widget.tab == 'riwayat' || widget.tab == 'laundry';
+  bool get _noBulanFilter => widget.tab == 'syahriah' || widget.tab == 'tunggakan' || widget.tab == 'jajan';
   // Riwayat butuh filter bulan tapi tidak butuh kobong/kelas
-  bool get _riwayatTab => widget.tab == 'riwayat';
 
   // ── Data ─────────────────────────────────────────────────
   bool   _loading   = false;
@@ -342,6 +343,8 @@ class _AdminDetailScreenState extends State<AdminDetailScreen> {
   Future<void> _showTransaksiDialog(String sid, String nama, String kat, String jenis) async {
     final ctrlNom = TextEditingController();
     final ctrlKet = TextEditingController();
+    // Tanggal default: hari ini, bisa diubah user
+    final ctrlTgl = TextEditingController(text: DateTime.now().toIso8601String().substring(0,10));
     final judul = kat == 'tabungan' && jenis == 'masuk' ? 'Isi Saldo Jajan'
         : kat == 'tabungan' && jenis == 'keluar' ? 'Kasih Uang Jajan'
         : kat == 'syahriah' ? 'Bayar Syahriah' : 'Bayar Laundry';
@@ -361,6 +364,11 @@ class _AdminDetailScreenState extends State<AdminDetailScreen> {
             Text(judul, style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 18, color: widget.color)),
             Text(nama,  style: GoogleFonts.plusJakartaSans(color: Colors.grey, fontSize: 13)),
             const SizedBox(height: 20),
+            TextField(controller: ctrlTgl,
+                decoration: InputDecoration(labelText: 'Tanggal (YYYY-MM-DD)',
+                    prefixIcon: const Icon(Icons.calendar_today_rounded),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)))),
+            const SizedBox(height: 12),
             TextField(controller: ctrlNom, keyboardType: TextInputType.number,
                 decoration: InputDecoration(labelText: 'Nominal (Rp)',
                     prefixIcon: const Icon(Icons.attach_money_rounded),
@@ -380,6 +388,7 @@ class _AdminDetailScreenState extends State<AdminDetailScreen> {
                         'aksi': 'transaksi', 'santri_id': sid, 'kategori': kat,
                         'jenis': jenis, 'nominal': ctrlNom.text,
                         'keterangan': ctrlKet.text, 'asrama': widget.asrama,
+                        'tanggal': ctrlTgl.text,
                       });
                       _snack('✅ Transaksi berhasil!', Colors.green);
                       _fetch();
@@ -478,8 +487,8 @@ class _AdminDetailScreenState extends State<AdminDetailScreen> {
           const SizedBox(height: 8),
         ],
 
-        // Baris 2: Bulan & Tahun & Reset
-        Row(children: [
+        // Baris 2: Bulan & Tahun & Reset (tidak tampil di syahriah/tunggakan/jajan)
+        if (!_noBulanFilter) Row(children: [
           // Bulan
           Expanded(child: _dd<int>(
             value: _bulan,
@@ -522,8 +531,8 @@ class _AdminDetailScreenState extends State<AdminDetailScreen> {
               const SizedBox(width: 4),
               Expanded(child: Text(
                 _adaFilter
-                    ? 'Filter: ${_namaKobong.isNotEmpty ? _namaKobong : "Kelas $_kelas"} · ${_namaBulan[_bulan]} $_tahun'
-                    : 'Bulan: ${_namaBulan[_bulan]} · TA $_tahun/${_tahun + 1}',
+                    ? 'Filter: ${_namaKobong.isNotEmpty ? _namaKobong : "Kelas $_kelas"} · TA $_tahun/${_tahun + 1}'
+                    : 'TA $_tahun/${_tahun + 1}',
                 style: GoogleFonts.plusJakartaSans(fontSize: 12, color: widget.color, fontWeight: FontWeight.w600),
                 overflow: TextOverflow.ellipsis,
               )),
@@ -566,6 +575,7 @@ class _AdminDetailScreenState extends State<AdminDetailScreen> {
     // Tab yang butuh kobong/kelas → tampilkan prompt dulu
     final butuhFilter = !_noFilter && !_riwayatTab;
     if (butuhFilter && !_adaFilter) return _filterPrompt();
+    // Riwayat boleh tanpa filter kobong/kelas
 
     switch (widget.tab) {
       case 'verifikasi': return _listVerifikasi();
@@ -913,15 +923,29 @@ class _SyahriahCard extends StatelessWidget {
         if (bulanData.isNotEmpty) ...[
           const SizedBox(height: 10),
           Wrap(spacing: 4, runSpacing: 4, children: _bln.asMap().entries.map((e) {
-            final ok = e.key < bulanData.length ? (bulanData[e.key] == 1) : false;
+            // 1=lunas(hijau), 0=belum(merah), 2=belum waktunya(abu)
+            final status = e.key < bulanData.length ? (bulanData[e.key] as int) : 2;
+            Color bgColor, borderColor, textColor;
+            if (status == 1) {
+              bgColor = Colors.green.withOpacity(0.12);
+              borderColor = Colors.green.withOpacity(0.5);
+              textColor = Colors.green[700]!;
+            } else if (status == 0) {
+              bgColor = Colors.red.withOpacity(0.08);
+              borderColor = Colors.red.withOpacity(0.3);
+              textColor = Colors.red[400]!;
+            } else {
+              bgColor = Colors.grey.withOpacity(0.06);
+              borderColor = Colors.grey.withOpacity(0.2);
+              textColor = Colors.grey[400]!;
+            }
             return Container(width: 34, height: 26,
                 decoration: BoxDecoration(
-                    color: ok ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.07),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: ok ? Colors.green.withOpacity(0.4) : Colors.red.withOpacity(0.2))),
+                    color: bgColor, borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: borderColor)),
                 child: Center(child: Text(e.value,
                     style: GoogleFonts.plusJakartaSans(fontSize: 9, fontWeight: FontWeight.w700,
-                        color: ok ? Colors.green[700] : Colors.red[300]))));
+                        color: textColor))));
           }).toList()),
         ],
       ]),
